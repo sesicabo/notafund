@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plataforma de Notas SESI - Ensino Fundamental</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        :root { --primary: #0056b3; --danger: #dc3545; --success: #28a745; --gray: #6c757d; --light: #f4f7f6; }
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { margin: 0; background: var(--light); display: flex; height: 100vh; overflow: hidden; }
+        
+        .sidebar { width: 300px; background: white; border-right: 1px solid #ddd; padding: 20px; display: flex; flex-direction: column; overflow-y: auto; }
+        .sidebar h2 { color: var(--primary); margin-top: 0; font-size: 20px; text-align: center; border-bottom: 2px solid var(--primary); padding-bottom: 10px; }
+        
+        .box { background: #fdfdfd; border: 1px solid #eee; padding: 15px; border-radius: 6px; margin-bottom: 15px; }
+        .box h4 { margin: 0 0 10px 0; color: #333; }
+        
+        .input-group { display: flex; gap: 5px; margin-bottom: 10px; }
+        input[type="text"], input[type="number"] { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; outline: none; }
+        input[type="text"]:focus, input[type="number"]:focus { border-color: var(--primary); }
+        
+        button { cursor: pointer; border: none; border-radius: 4px; padding: 8px 12px; font-weight: bold; transition: 0.2s; }
+        button:hover { opacity: 0.9; }
+        .btn-add { background: var(--primary); color: white; }
+        .btn-del { background: var(--danger); color: white; padding: 4px 8px; font-size: 12px; }
+        .btn-pdf { background: var(--success); color: white; width: 100%; padding: 12px; font-size: 14px; margin-top: auto; }
+        
+        .list { list-style: none; padding: 0; margin: 0; }
+        .list li { display: flex; justify-content: space-between; align-items: center; padding: 8px; background: white; border: 1px solid #ddd; margin-bottom: 5px; border-radius: 4px; cursor: pointer; }
+        .list li.active { border-left: 5px solid var(--primary); background: #eef5ff; font-weight: bold; }
+        .list li span { flex: 1; }
+
+        .main { flex: 1; padding: 20px; overflow-y: auto; }
+        .header-main { background: white; padding: 15px 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+        .header-main h3 { margin: 0; color: #444; }
+
+        table { width: 100%; border-collapse: collapse; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
+        th { background: #f8f9fa; color: #333; }
+        td input { width: 70px; text-align: center; }
+        
+        .media-col { font-weight: bold; font-size: 16px; }
+        .aprovado { color: var(--success); }
+        .reprovado { color: var(--danger); }
+        .btn-boletim { background: #17a2b8; color: white; font-size: 12px; padding: 6px 10px; margin-right: 5px; }
+        
+        .empty-state { text-align: center; color: #777; margin-top: 50px; }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <h2>SESI - Gestão de Notas</h2>
+        
+        <div class="box">
+            <h4>1. Turmas</h4>
+            <div class="input-group">
+                <input type="text" id="inputTurma" placeholder="Ex: 7º Ano A">
+                <button type="button" class="btn-add" onclick="addTurma()">+</button>
+            </div>
+            <ul class="list" id="listaTurmas"></ul>
+        </div>
+
+        <div class="box" id="boxDisciplinas" style="opacity: 0.5; pointer-events: none;">
+            <h4>2. Disciplinas</h4>
+            <div class="input-group">
+                <input type="text" id="inputDisc" placeholder="Ex: História">
+                <button type="button" class="btn-add" onclick="addDisciplina()">+</button>
+            </div>
+            <ul class="list" id="listaDisciplinas"></ul>
+        </div>
+
+        <button type="button" class="btn-pdf" onclick="gerarRelatorioGeral()">📄 Baixar Relatório da Disciplina</button>
+    </div>
+
+    <div class="main">
+        <div id="areaTrabalho" style="display: none;">
+            <div class="header-main">
+                <h3 id="tituloTabela">Turma > Disciplina</h3>
+                <div>
+                    <input type="text" id="inputAluno" placeholder="Nome do Aluno" style="padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                    <button type="button" class="btn-add" title="O aluno será adicionado em todas as disciplinas desta turma" onclick="addAluno()">+ Aluno</button>
+                    <button type="button" class="btn-add" style="background: #6f42c1; margin-left: 10px;" onclick="addAtividade()">+ Nova Atividade</button>
+                </div>
+            </div>
+
+            <div id="conteudoImpressao">
+                <h2 id="tituloImpressao" style="display: none; text-align: center; color: #0056b3;"></h2>
+                <table id="tabelaNotas">
+                    <thead id="theadNotas"></thead>
+                    <tbody id="tbodyNotas"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="mensagemInicial" class="empty-state">
+            <h2>Bem-vindo à Plataforma de Notas</h2>
+            <p>Selecione ou crie uma Turma na barra lateral para começar.</p>
+        </div>
+    </div>
+
+    <script>
+        let appData = { turmas: {} };
+        try {
+            const saved = localStorage.getItem('sesiNotasData');
+            if (saved) appData = JSON.parse(saved);
+        } catch (e) {
+            console.error('Erro ao carregar dados:', e);
+        }
+
+        let turmaAtual = null;
+        let discAtual = null;
+
+        function salvarDados() {
+            localStorage.setItem('sesiNotasData', JSON.stringify(appData));
+            renderizarTurmas();
+            renderizarDisciplinas();
+            renderizarTabela();
+        }
+
+        // --- TURMAS ---
+        function addTurma() {
+            const nome = document.getElementById('inputTurma').value.trim();
+            if (!nome) return alert('Digite o nome da turma.');
+            if (appData.turmas[nome]) return alert('Turma já existe.');
+            
+            appData.turmas[nome] = { disciplinas: {} };
+            document.getElementById('inputTurma').value = '';
+            salvarDados();
+        }
+
+        function delTurma(nome) {
+            if (confirm(`Atenção! Excluir a turma "${nome}" apagará todas as disciplinas e notas dela. Continuar?`)) {
+                delete appData.turmas[nome];
+                if (turmaAtual === nome) { turmaAtual = null; discAtual = null; }
+                salvarDados();
+            }
+        }
+
+        function selecionarTurma(nome) {
+            turmaAtual = nome;
+            discAtual = null;
+            renderizarTurmas();
+            renderizarDisciplinas();
+            renderizarTabela();
+        }
+
+        function renderizarTurmas() {
+            const ul = document.getElementById('listaTurmas');
+            ul.innerHTML = '';
+            for (let t in appData.turmas) {
+                ul.innerHTML += `
+                    <li class="${turmaAtual === t ? 'active' : ''}">
+                        <span onclick="selecionarTurma('${t}')">${t}</span>
+                        <button type="button" class="btn-del" onclick="delTurma('${t}')">X</button>
+                    </li>`;
+            }
+
+            const boxDisc = document.getElementById('boxDisciplinas');
+            if (turmaAtual) {
+                boxDisc.style.opacity = '1';
+                boxDisc.style.pointerEvents = 'auto';
+            } else {
+                boxDisc.style.opacity = '0.5';
+                boxDisc.style.pointerEvents = 'none';
+            }
+        }
+
+        // --- DISCIPLINAS ---
+        function addDisciplina() {
+            const nome = document.getElementById('inputDisc').value.trim();
+            if (!nome) return alert('Digite o nome da disciplina.');
+            const turma = appData.turmas[turmaAtual];
+            
+            if (turma.disciplinas[nome]) return alert('Disciplina já existe nesta turma.');
+
+            const novaDisc = { atividades: 1, alunos: {} };
+            
+            // Lógica Inteligente: Se já existem alunos na turma, copia a lista para a nova disciplina
+            const outrasDisc = Object.keys(turma.disciplinas);
+            if (outrasDisc.length > 0) {
+                const discRef = turma.disciplinas[outrasDisc[0]];
+                for (let aluno in discRef.alunos) {
+                    novaDisc.alunos[aluno] = [0]; // Inicia com 1 atividade zerada
+                }
+            }
+
+            turma.disciplinas[nome] = novaDisc;
+            document.getElementById('inputDisc').value = '';
+            salvarDados();
+        }
+
+        function delDisciplina(nome) {
+            if (confirm(`Apagar a disciplina "${nome}"?`)) {
+                delete appData.turmas[turmaAtual].disciplinas[nome];
+                if (discAtual === nome) discAtual = null;
+                salvarDados();
+            }
+        }
+
+        function selecionarDisciplina(nome) {
+            discAtual = nome;
+            renderizarDisciplinas();
+            renderizarTabela();
+        }
+
+        function renderizarDisciplinas() {
+            const ul = document.getElementById('listaDisciplinas');
+            ul.innerHTML = '';
+            if (!turmaAtual) return;
+
+            for (let d in appData.turmas[turmaAtual].disciplinas) {
+                ul.innerHTML += `
+                    <li class="${discAtual === d ? 'active' : ''}">
+                        <span onclick="selecionarDisciplina('${d}')">${d}</span>
+                        <button type="button" class="btn-del" onclick="delDisciplina('${d}')">X</button>
+                    </li>`;
+            }
+        }
+
+        // --- ALUNOS E ATIVIDADES ---
+        function addAluno() {
+            const nome = document.getElementById('inputAluno').value.trim();
+            if (!nome) return alert('Digite o nome do aluno.');
+            const turma = appData.turmas[turmaAtual];
+            
+            if (turma.disciplinas[discAtual].alunos[nome]) return alert('Aluno já cadastrado nesta turma.');
+
+            // Lógica Inteligente: Adiciona o aluno em TODAS as disciplinas da turma atual
+            for (let d in turma.disciplinas) {
+                const disc = turma.disciplinas[d];
+                if (!disc.alunos[nome]) {
+                    disc.alunos[nome] = Array(disc.atividades).fill(0);
+                }
+            }
+            
+            document.getElementById('inputAluno').value = '';
+            salvarDados();
+        }
+
+        function delAluno(nome) {
+            if (confirm(`Atenção: Remover o(a) aluno(a) ${nome} de TODAS as disciplinas desta turma?`)) {
+                const turma = appData.turmas[turmaAtual];
+                for (let d in turma.disciplinas) {
+                    if (turma.disciplinas[d].alunos[nome]) {
+                        delete turma.disciplinas[d].alunos[nome];
+                    }
+                }
+                salvarDados();
+            }
+        }
+
+        function addAtividade() {
+            const disc = appData.turmas[turmaAtual].disciplinas[discAtual];
+            disc.atividades += 1;
+            for (let aluno in disc.alunos) {
+                disc.alunos[aluno].push(0);
+            }
+            salvarDados();
+        }
+
+        function delAtividade() {
+            const disc = appData.turmas[turmaAtual].disciplinas[discAtual];
+            if (disc.atividades <= 1) return alert('Deve haver pelo menos 1 atividade.');
+            
+            if (confirm('Atenção: Isso excluirá a última coluna de atividades desta disciplina. Continuar?')) {
+                disc.atividades -= 1;
+                for (let aluno in disc.alunos) {
+                    disc.alunos[aluno].pop();
+                }
+                salvarDados();
+            }
+        }
+
+        function atualizarNota(aluno, indexAtividade, valorDigitado) {
+            let valor = parseFloat(valorDigitado) || 0;
+            if (valor < 0) valor = 0;
+            if (valor > 10) valor = 10;
+            
+            appData.turmas[turmaAtual].disciplinas[discAtual].alunos[aluno][indexAtividade] = valor;
+            salvarDados();
+        }
+
+        function renderizarTabela() {
+            const area = document.getElementById('areaTrabalho');
+            const msg = document.getElementById('mensagemInicial');
+
+            if (!turmaAtual || !discAtual) {
+                area.style.display = 'none';
+                msg.style.display = 'block';
+                return;
+            }
+
+            area.style.display = 'block';
+            msg.style.display = 'none';
+            document.getElementById('tituloTabela').innerText = `${turmaAtual} - ${discAtual}`;
+
+            const disc = appData.turmas[turmaAtual].disciplinas[discAtual];
+            const thead = document.getElementById('theadNotas');
+            const tbody = document.getElementById('tbodyNotas');
+
+            // Cabeçalho
+            let thHTML = `<tr><th style="text-align: left; width: 30%;">Estudante</th>`;
+            for (let i = 0; i < disc.atividades; i++) {
+                thHTML += `<th>Ativ. ${i + 1}</th>`;
+            }
+            thHTML += `
+                <th>Média Final</th>
+                <th class="col-acoes">Ações <br>
+                    <button type="button" class="btn-del" onclick="delAtividade()">- Remover Última Ativ.</button>
+                </th>
+            </tr>`;
+            thead.innerHTML = thHTML;
+
+            // Corpo
+            tbody.innerHTML = '';
+            for (let aluno in disc.alunos) {
+                let notas = disc.alunos[aluno];
+                let soma = 0;
+                
+                let tdHTML = `<tr><td style="text-align: left;"><strong>${aluno}</strong></td>`;
+                
+                for (let i = 0; i < disc.atividades; i++) {
+                    let nota = notas[i] || 0;
+                    soma += nota;
+                    tdHTML += `<td><input type="number" min="0" max="10" step="0.1" value="${nota}" onchange="atualizarNota('${aluno.replace(/'/g, "\\'")}', ${i}, this.value)"></td>`;
+                }
+
+                let media = disc.atividades > 0 ? (soma / disc.atividades).toFixed(1) : "0.0";
+                let classeMedia = media >= 6.0 ? 'aprovado' : 'reprovado';
+
+                tdHTML += `<td class="media-col ${classeMedia}">${media}</td>`;
+                tdHTML += `<td class="col-acoes">
+                    <button type="button" class="btn-boletim" onclick="gerarBoletimGlobal('${aluno.replace(/'/g, "\\'")}')">Boletim Geral</button>
+                    <button type="button" class="btn-del" onclick="delAluno('${aluno.replace(/'/g, "\\'")}')">Excluir da Turma</button>
+                </td></tr>`;
+
+                tbody.innerHTML += tdHTML;
+            }
+        }
+
+        // --- EXPORTAÇÃO PDF ---
+        function gerarRelatorioGeral() {
+            if (!turmaAtual || !discAtual) return alert('Selecione uma turma e disciplina primeiro.');
+            
+            const areaImpressao = document.getElementById('conteudoImpressao');
+            const titulo = document.getElementById('tituloImpressao');
+            titulo.innerText = `SESI - Relatório de Notas | Turma: ${turmaAtual} | Disciplina: ${discAtual}`;
+            titulo.style.display = 'block';
+
+            const inputs = areaImpressao.querySelectorAll('input');
+            const acoes = areaImpressao.querySelectorAll('.col-acoes');
+            
+            inputs.forEach(i => {
+                i.setAttribute('value', i.value);
+                i.style.border = 'none';
+                i.style.background = 'transparent';
+            });
+            acoes.forEach(a => a.style.display = 'none');
+
+            const opt = {
+                margin: 10,
+                filename: `Relatorio_${turmaAtual}_${discAtual}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+            };
+
+            html2pdf().set(opt).from(areaImpressao).save().then(() => {
+                titulo.style.display = 'none';
+                inputs.forEach(i => {
+                    i.style.border = '';
+                    i.style.background = '';
+                });
+                acoes.forEach(a => a.style.display = '');
+            });
+        }
+
+        // NOVO BOLETIM GLOBAL
+        function gerarBoletimGlobal(aluno) {
+            const turma = appData.turmas[turmaAtual];
+            
+            // Constrói as linhas da tabela pegando as médias de todas as disciplinas da turma
+            let linhasTabela = '';
+            let contadorDisciplinas = 0;
+            let somaTotalGeral = 0;
+
+            for (let nomeDisc in turma.disciplinas) {
+                const disc = turma.disciplinas[nomeDisc];
+                if (disc.alunos[aluno]) {
+                    const notas = disc.alunos[aluno];
+                    let somaDisc = 0;
+                    notas.forEach(n => somaDisc += n);
+                    
+                    let mediaDisc = disc.atividades > 0 ? (somaDisc / disc.atividades) : 0;
+                    let mediaFormatada = mediaDisc.toFixed(1);
+                    
+                    let corStatus = mediaDisc >= 6.0 ? '#28a745' : '#dc3545';
+                    let textoStatus = mediaDisc >= 6.0 ? 'Atingiu a Média' : 'Abaixo da Média';
+
+                    linhasTabela += `
+                        <tr>
+                            <td style="padding: 12px; border: 1px solid #ddd; text-align: left; font-weight: bold;">${nomeDisc}</td>
+                            <td style="padding: 12px; border: 1px solid #ddd; font-size: 18px; font-weight: bold; color: ${corStatus};">${mediaFormatada}</td>
+                            <td style="padding: 12px; border: 1px solid #ddd; color: ${corStatus}; font-weight: bold;">${textoStatus}</td>
+                        </tr>
+                    `;
+
+                    somaTotalGeral += mediaDisc;
+                    contadorDisciplinas++;
+                }
+            }
+
+            if (contadorDisciplinas === 0) return alert("Nenhuma disciplina encontrada para este aluno.");
+
+            // Calcula a Média Global do Aluno (Média das Médias)
+            let mediaGlobal = (somaTotalGeral / contadorDisciplinas).toFixed(1);
+            let corGlobal = mediaGlobal >= 6.0 ? '#0056b3' : '#dc3545';
+
+            const htmlBoletim = `
+                <div style="padding: 40px; font-family: 'Segoe UI', Tahoma, sans-serif; max-width: 700px; margin: 0 auto; border: 2px solid #0056b3; border-radius: 8px;">
+                    <div style="text-align: center; margin-bottom: 30px;">
+                        <h2 style="color: #0056b3; margin: 0; font-size: 26px;">SESI - GESTÃO EDUCACIONAL</h2>
+                        <h3 style="color: #555; margin: 5px 0; font-size: 20px;">Boletim Escolar Unificado</h3>
+                    </div>
+                    <hr style="border-top: 1px solid #ccc; margin-bottom: 20px;">
+                    
+                    <div style="font-size: 18px; line-height: 1.6; margin-bottom: 30px; background: #f8f9fa; padding: 15px; border-radius: 6px;">
+                        <p style="margin: 5px 0;"><strong>Estudante:</strong> ${aluno}</p>
+                        <p style="margin: 5px 0;"><strong>Turma:</strong> ${turmaAtual}</p>
+                    </div>
+
+                    <table style="width: 100%; border-collapse: collapse; text-align: center; margin-bottom: 30px;">
+                        <thead>
+                            <tr style="background: #eef5ff; color: #0056b3;">
+                                <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">Disciplina</th>
+                                <th style="padding: 12px; border: 1px solid #ddd;">Média Aritmética</th>
+                                <th style="padding: 12px; border: 1px solid #ddd;">Situação Final</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${linhasTabela}
+                        </tbody>
+                    </table>
+
+                    <div style="background-color: #eef5ff; padding: 20px; text-align: center; border-radius: 8px; border: 1px solid #cce0ff;">
+                        <h4 style="margin-top: 0; color: #333; font-size: 16px;">Média Global do Período</h4>
+                        <div style="font-size: 36px; font-weight: bold; color: ${corGlobal};">
+                            ${mediaGlobal}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const opt = {
+                margin: 15,
+                filename: `Boletim_Unificado_${aluno}_${turmaAtual}.pdf`,
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(htmlBoletim).save();
+        }
+
+        renderizarTurmas();
+    </script>
+</body>
+</html>
