@@ -148,18 +148,29 @@
             console.error(error);
         });
 
+        // FILTRO DE SEGURANÇA PARA EVITAR ERROS NO BANCO
+        function limparNome(nomeOriginal) {
+            return nomeOriginal.replace(/[.#$/\[\]]/g, '').trim();
+        }
+
         function salvarNaNuvem(atualizarTelas = true) {
             const status = document.getElementById('statusSave');
             status.innerText = "⏳ Salvando..."; status.style.color = "#ffc107";
+            
             dbRef.set(appData).then(() => {
                 status.innerText = "☁️ Salvo na Nuvem"; status.style.color = "var(--success)";
                 if(atualizarTelas) { renderizarTurmas(); renderizarDisciplinas(); renderizarTabela(); }
+            }).catch(error => {
+                status.innerText = "❌ Erro ao Salvar"; status.style.color = "var(--danger)";
+                console.error("ERRO FIREBASE:", error);
+                alert("ATENÇÃO: Falha ao salvar na nuvem! Verifique sua conexão. Detalhe do erro: " + error.message);
             });
         }
 
         // --- GESTÃO BÁSICA ---
         function addTurma() {
-            const nome = document.getElementById('inputTurma').value.trim();
+            let valorInput = document.getElementById('inputTurma').value;
+            const nome = limparNome(valorInput);
             if (!nome || appData.turmas[nome]) return;
             appData.turmas[nome] = { disciplinas: {} };
             document.getElementById('inputTurma').value = '';
@@ -177,7 +188,8 @@
         function selecionarTurma(nome) { turmaAtual = nome; discAtual = null; renderizarTurmas(); renderizarDisciplinas(); renderizarTabela(); }
 
         function addDisciplina() {
-            const nome = document.getElementById('inputDisc').value.trim();
+            let valorInput = document.getElementById('inputDisc').value;
+            const nome = limparNome(valorInput);
             if (!nome) return;
             const turma = appData.turmas[turmaAtual];
             if (!turma.disciplinas) turma.disciplinas = {};
@@ -205,7 +217,8 @@
         function selecionarDisciplina(nome) { discAtual = nome; renderizarDisciplinas(); renderizarTabela(); }
 
         function addAluno() {
-            const nome = document.getElementById('inputAluno').value.trim();
+            let valorInput = document.getElementById('inputAluno').value;
+            const nome = limparNome(valorInput);
             if (!nome) return;
             const turma = appData.turmas[turmaAtual];
             if (Object.keys(turma.disciplinas || {}).length === 0) return alert('Crie uma disciplina primeiro.');
@@ -424,7 +437,7 @@
                     }
 
                     let corStatus = mediaFinal >= 6.0 ? '#28a745' : '#dc3545';
-                    let textoStatus = mediaFinal >= 6.0 ? (recupVal !== '-' ? 'Aprovado (Recup.)' : 'Aprovado') : 'Reprovado';
+                    let textoStatus = mediaFinal >= 6.0 ? (recupVal !== '-' ? 'Aprov. (Recup.)' : 'Aprovado') : 'Reprovado';
 
                     linhasTabela += `<tr>
                         <td style="padding: 12px; border: 1px solid #ddd; text-align: left; font-weight: bold;">${nomeDisc}</td>
