@@ -112,6 +112,7 @@
         let turmaAtual = null;
         let discAtual = null;
 
+        // Essa função recarrega TODA a tela (usada para adicionar/excluir alunos e turmas)
         function salvarDados() {
             localStorage.setItem('sesiNotasData', JSON.stringify(appData));
             renderizarTurmas();
@@ -177,12 +178,11 @@
 
             const novaDisc = { atividades: 1, alunos: {} };
             
-            // Lógica Inteligente: Se já existem alunos na turma, copia a lista para a nova disciplina
             const outrasDisc = Object.keys(turma.disciplinas);
             if (outrasDisc.length > 0) {
                 const discRef = turma.disciplinas[outrasDisc[0]];
                 for (let aluno in discRef.alunos) {
-                    novaDisc.alunos[aluno] = [0]; // Inicia com 1 atividade zerada
+                    novaDisc.alunos[aluno] = [0]; 
                 }
             }
 
@@ -227,7 +227,6 @@
             
             if (turma.disciplinas[discAtual].alunos[nome]) return alert('Aluno já cadastrado nesta turma.');
 
-            // Lógica Inteligente: Adiciona o aluno em TODAS as disciplinas da turma atual
             for (let d in turma.disciplinas) {
                 const disc = turma.disciplinas[d];
                 if (!disc.alunos[nome]) {
@@ -273,13 +272,34 @@
             }
         }
 
-        function atualizarNota(aluno, indexAtividade, valorDigitado) {
+        // NOVA FUNÇÃO OTIMIZADA PARA AS NOTAS (Sem recarregar a tabela)
+        function atualizarNota(aluno, indexAtividade, valorDigitado, inputElement) {
             let valor = parseFloat(valorDigitado) || 0;
             if (valor < 0) valor = 0;
             if (valor > 10) valor = 10;
             
+            // Atualiza o banco de dados da aplicação
             appData.turmas[turmaAtual].disciplinas[discAtual].alunos[aluno][indexAtividade] = valor;
-            salvarDados();
+            
+            // Salva de forma invisível
+            localStorage.setItem('sesiNotasData', JSON.stringify(appData));
+
+            // Calcula a nova média apenas deste aluno
+            const disc = appData.turmas[turmaAtual].disciplinas[discAtual];
+            const notas = disc.alunos[aluno];
+            let soma = 0;
+            notas.forEach(n => soma += n);
+            let media = disc.atividades > 0 ? (soma / disc.atividades).toFixed(1) : "0.0";
+
+            // Encontra a linha da tabela e atualiza só a coluna da média (evitando o "piscar" da tela)
+            if (inputElement) {
+                const linha = inputElement.closest('tr');
+                if (linha) {
+                    const colMedia = linha.querySelector('.media-col');
+                    colMedia.innerText = media;
+                    colMedia.className = `media-col ${media >= 6.0 ? 'aprovado' : 'reprovado'}`;
+                }
+            }
         }
 
         function renderizarTabela() {
@@ -324,7 +344,8 @@
                 for (let i = 0; i < disc.atividades; i++) {
                     let nota = notas[i] || 0;
                     soma += nota;
-                    tdHTML += `<td><input type="number" min="0" max="10" step="0.1" value="${nota}" onchange="atualizarNota('${aluno.replace(/'/g, "\\'")}', ${i}, this.value)"></td>`;
+                    // Mudança feita aqui: usamos "oninput" para salvar na hora, e enviamos o "this"
+                    tdHTML += `<td><input type="number" min="0" max="10" step="0.1" value="${nota}" oninput="atualizarNota('${aluno.replace(/'/g, "\\'")}', ${i}, this.value, this)"></td>`;
                 }
 
                 let media = disc.atividades > 0 ? (soma / disc.atividades).toFixed(1) : "0.0";
@@ -377,11 +398,9 @@
             });
         }
 
-        // NOVO BOLETIM GLOBAL
         function gerarBoletimGlobal(aluno) {
             const turma = appData.turmas[turmaAtual];
             
-            // Constrói as linhas da tabela pegando as médias de todas as disciplinas da turma
             let linhasTabela = '';
             let contadorDisciplinas = 0;
             let somaTotalGeral = 0;
@@ -414,7 +433,6 @@
 
             if (contadorDisciplinas === 0) return alert("Nenhuma disciplina encontrada para este aluno.");
 
-            // Calcula a Média Global do Aluno (Média das Médias)
             let mediaGlobal = (somaTotalGeral / contadorDisciplinas).toFixed(1);
             let corGlobal = mediaGlobal >= 6.0 ? '#0056b3' : '#dc3545';
 
