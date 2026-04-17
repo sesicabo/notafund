@@ -237,7 +237,6 @@
             salvarNaNuvem();
         }
 
-        // NOVO: Excluir atividade específica
         function excluirAtividadeEspecifica(indexAtividade) {
             const disc = appData.turmas[turmaAtual].disciplinas[discAtual];
             if (disc.atividades <= 1) return alert("A disciplina precisa ter no mínimo 1 atividade.");
@@ -264,7 +263,6 @@
             let mediaFinal = media;
             let status = media >= 6.0 ? 'aprovado' : 'reprovado';
 
-            // Regra de Cálculo da Recuperação (Média Aritmética)
             if (recupVal !== null && media < 6.0) {
                 mediaFinal = (media + recupVal) / 2;
                 status = mediaFinal >= 6.0 ? 'aprovado' : 'reprovado';
@@ -336,7 +334,6 @@
             const thead = document.getElementById('theadNotas');
             const tbody = document.getElementById('tbodyNotas');
 
-            // Cabeçalho atualizado
             let thHTML = `<tr><th style="text-align: left; width: 20%;">Estudante</th>`;
             for (let i = 0; i < disc.atividades; i++) { 
                 thHTML += `<th>Ativ. ${i + 1} <button type="button" class="btn-del-ativ" title="Excluir Atividade" onclick="excluirAtividadeEspecifica(${i})">✖</button></th>`; 
@@ -370,7 +367,6 @@
                 }
 
                 tdHTML += `<td class="media-col ${media >= 6.0 ? 'aprovado' : 'reprovado'}">${media.toFixed(1)}</td>`;
-                // Input de Recuperação
                 tdHTML += `<td><input type="number" class="recup-input" min="0" max="10" step="0.1" value="${recupVal}" placeholder="-" oninput="atualizarRecuperacao('${aluno.replace(/'/g, "\\'")}', this.value, this)"></td>`;
                 tdHTML += `<td class="media-final-col ${status}">${mediaFinal.toFixed(1)}</td>`;
 
