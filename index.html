@@ -57,7 +57,7 @@
         .btn-boletim { background: #17a2b8; color: white; font-size: 12px; padding: 6px 10px; margin-right: 5px; }
         
         .empty-state { text-align: center; color: #6c757d; margin-top: 10vh; }
-        .status-nuvem { margin-top: auto; padding: 10px; text-align: center; font-size: 12px; color: var(--success); font-weight: bold; background: #eef5ff; border-radius: 4px; border: 1px solid #cce0ff; }
+        .status-nuvem { margin-top: auto; padding: 10px; text-align: center; font-size: 12px; color: var(--success); font-weight: bold; background: #eef5ff; border-radius: 4px; border: 1px solid #cce0ff; transition: 0.3s; }
     </style>
 </head>
 <body>
@@ -120,6 +120,7 @@
     </div>
 
     <script>
+        // CONFIGURAÇÃO OFICIAL FIREBASE
         const firebaseConfig = {
             apiKey: "AIzaSyCxaAHCk0COQm1Zuma_Z5X8GGa-uC801VM",
             authDomain: "notafundgit.firebaseapp.com",
@@ -138,6 +139,7 @@
         let turmaAtual = null;
         let discAtual = null;
 
+        // PUXAR DADOS INICIAIS
         dbRef.once('value', (snapshot) => {
             if (snapshot.exists()) appData = snapshot.val();
             else appData = { turmas: {} };
@@ -145,43 +147,45 @@
             renderizarTurmas();
         }).catch(error => {
             alert("Erro ao conectar no banco de dados.");
-            console.error(error);
         });
 
-        // FILTRO DE SEGURANÇA PARA EVITAR ERROS NO BANCO
+        // FILTRO DE SEGURANÇA (Garante que nomes não quebrem o banco)
         function limparNome(nomeOriginal) {
             return nomeOriginal.replace(/[.#$/\[\]]/g, '').trim();
         }
 
-        function salvarNaNuvem(atualizarTelas = true) {
+        // MOTOR DE SALVAMENTO CIRÚRGICO (Apenas a alteração feita vai pra nuvem)
+        function notificarSalvamento(promise, atualizarUI = true) {
             const status = document.getElementById('statusSave');
             status.innerText = "⏳ Salvando..."; status.style.color = "#ffc107";
             
-            dbRef.set(appData).then(() => {
+            promise.then(() => {
                 status.innerText = "☁️ Salvo na Nuvem"; status.style.color = "var(--success)";
-                if(atualizarTelas) { renderizarTurmas(); renderizarDisciplinas(); renderizarTabela(); }
+                if(atualizarUI) { renderizarTurmas(); renderizarDisciplinas(); renderizarTabela(); }
             }).catch(error => {
                 status.innerText = "❌ Erro ao Salvar"; status.style.color = "var(--danger)";
                 console.error("ERRO FIREBASE:", error);
-                alert("ATENÇÃO: Falha ao salvar na nuvem! Verifique sua conexão. Detalhe do erro: " + error.message);
             });
         }
 
-        // --- GESTÃO BÁSICA ---
+        // --- GESTÃO ESTRUTURAL ---
         function addTurma() {
             let valorInput = document.getElementById('inputTurma').value;
             const nome = limparNome(valorInput);
             if (!nome || appData.turmas[nome]) return;
+            
             appData.turmas[nome] = { disciplinas: {} };
             document.getElementById('inputTurma').value = '';
-            salvarNaNuvem();
+            
+            // Salva só a nova turma
+            notificarSalvamento(dbRef.child('turmas/' + nome).set({ _ativo: true }));
         }
 
         function delTurma(nome) {
             if (confirm(`Excluir a turma "${nome}" e todas as notas?`)) {
                 delete appData.turmas[nome];
                 if (turmaAtual === nome) { turmaAtual = null; discAtual = null; }
-                salvarNaNuvem();
+                notificarSalvamento(dbRef.child('turmas/' + nome).remove());
             }
         }
 
@@ -203,14 +207,15 @@
             }
             turma.disciplinas[nome] = novaDisc;
             document.getElementById('inputDisc').value = '';
-            salvarNaNuvem();
+            
+            notificarSalvamento(dbRef.child(`turmas/${turmaAtual}/disciplinas/${nome}`).set(novaDisc));
         }
 
         function delDisciplina(nome) {
             if (confirm(`Apagar a disciplina "${nome}"?`)) {
                 delete appData.turmas[turmaAtual].disciplinas[nome];
                 if (discAtual === nome) discAtual = null;
-                salvarNaNuvem();
+                notificarSalvamento(dbRef.child(`turmas/${turmaAtual}/disciplinas/${nome}`).remove());
             }
         }
 
@@ -223,23 +228,31 @@
             const turma = appData.turmas[turmaAtual];
             if (Object.keys(turma.disciplinas || {}).length === 0) return alert('Crie uma disciplina primeiro.');
             
+            let updates = {};
             for (let d in turma.disciplinas) {
                 const disc = turma.disciplinas[d];
                 if (!disc.alunos) disc.alunos = {};
-                if (!disc.alunos[nome]) disc.alunos[nome] = Array(disc.atividades).fill(0);
+                if (!disc.alunos[nome]) {
+                    disc.alunos[nome] = Array(disc.atividades).fill(0);
+                    updates[`turmas/${turmaAtual}/disciplinas/${d}/alunos/${nome}`] = disc.alunos[nome];
+                }
             }
             document.getElementById('inputAluno').value = '';
-            salvarNaNuvem();
+            notificarSalvamento(dbRef.update(updates));
         }
 
         function delAluno(nome) {
             if (confirm(`Remover ${nome} de TODAS as disciplinas?`)) {
                 const turma = appData.turmas[turmaAtual];
+                let updates = {};
                 for (let d in turma.disciplinas) { 
                     delete turma.disciplinas[d].alunos[nome]; 
                     if(turma.disciplinas[d].recuperacoes) delete turma.disciplinas[d].recuperacoes[nome];
+                    
+                    updates[`turmas/${turmaAtual}/disciplinas/${d}/alunos/${nome}`] = null;
+                    updates[`turmas/${turmaAtual}/disciplinas/${d}/recuperacoes/${nome}`] = null;
                 }
-                salvarNaNuvem();
+                notificarSalvamento(dbRef.update(updates));
             }
         }
 
@@ -247,7 +260,7 @@
             const disc = appData.turmas[turmaAtual].disciplinas[discAtual];
             disc.atividades += 1;
             for (let aluno in disc.alunos) { disc.alunos[aluno].push(0); }
-            salvarNaNuvem();
+            notificarSalvamento(dbRef.child(`turmas/${turmaAtual}/disciplinas/${discAtual}`).set(disc));
         }
 
         function excluirAtividadeEspecifica(indexAtividade) {
@@ -259,7 +272,7 @@
                 for (let aluno in disc.alunos) {
                     disc.alunos[aluno].splice(indexAtividade, 1);
                 }
-                salvarNaNuvem();
+                notificarSalvamento(dbRef.child(`turmas/${turmaAtual}/disciplinas/${discAtual}`).set(disc));
             }
         }
 
@@ -295,10 +308,13 @@
         function atualizarNota(aluno, indexAtividade, valorDigitado, inputElement) {
             let valor = parseFloat(valorDigitado) || 0;
             if (valor < 0) valor = 0; if (valor > 10) valor = 10;
-            appData.turmas[turmaAtual].disciplinas[discAtual].alunos[aluno][indexAtividade] = valor;
             
-            salvarNaNuvem(false); 
+            // Atualiza local e na UI
+            appData.turmas[turmaAtual].disciplinas[discAtual].alunos[aluno][indexAtividade] = valor;
             if (inputElement) recalcularLinhaUI(aluno, inputElement.closest('tr'));
+            
+            // Salva na nuvem APENAS a nota digitada (Impede sobrescrita)
+            notificarSalvamento(dbRef.child(`turmas/${turmaAtual}/disciplinas/${discAtual}/alunos/${aluno}/${indexAtividade}`).set(valor), false); 
         }
 
         function atualizarRecuperacao(aluno, valorDigitado, inputElement) {
@@ -308,12 +324,12 @@
 
             if (isNaN(valor)) {
                 delete disc.recuperacoes[aluno];
+                notificarSalvamento(dbRef.child(`turmas/${turmaAtual}/disciplinas/${discAtual}/recuperacoes/${aluno}`).remove(), false);
             } else {
                 if (valor < 0) valor = 0; if (valor > 10) valor = 10;
                 disc.recuperacoes[aluno] = valor;
+                notificarSalvamento(dbRef.child(`turmas/${turmaAtual}/disciplinas/${discAtual}/recuperacoes/${aluno}`).set(valor), false);
             }
-            
-            salvarNaNuvem(false);
             if (inputElement) recalcularLinhaUI(aluno, inputElement.closest('tr'));
         }
 
