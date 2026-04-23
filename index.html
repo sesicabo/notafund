@@ -177,7 +177,6 @@
             appData.turmas[nome] = { disciplinas: {} };
             document.getElementById('inputTurma').value = '';
             
-            // Salva só a nova turma
             notificarSalvamento(dbRef.child('turmas/' + nome).set({ _ativo: true }));
         }
 
@@ -309,11 +308,8 @@
             let valor = parseFloat(valorDigitado) || 0;
             if (valor < 0) valor = 0; if (valor > 10) valor = 10;
             
-            // Atualiza local e na UI
             appData.turmas[turmaAtual].disciplinas[discAtual].alunos[aluno][indexAtividade] = valor;
             if (inputElement) recalcularLinhaUI(aluno, inputElement.closest('tr'));
-            
-            // Salva na nuvem APENAS a nota digitada (Impede sobrescrita)
             notificarSalvamento(dbRef.child(`turmas/${turmaAtual}/disciplinas/${discAtual}/alunos/${aluno}/${indexAtividade}`).set(valor), false); 
         }
 
@@ -407,7 +403,7 @@
             }
         }
 
-        // --- GERAÇÃO DOS PDFs ---
+        // --- GERAÇÃO DOS PDFs COM AJUSTE PARA 1 PÁGINA ---
         function gerarRelatorioGeral() {
             if (!turmaAtual || !discAtual) return alert('Selecione uma turma e disciplina primeiro.');
             const areaImpressao = document.getElementById('conteudoImpressao');
@@ -423,7 +419,13 @@
             acoes.forEach(a => a.style.display = 'none');
             btnDels.forEach(b => b.style.display = 'none');
 
-            const opt = { margin: 10, filename: `Relatorio_${turmaAtual}_${discAtual}.pdf`, html2canvas: { scale: 2 }, jsPDF: { orientation: 'landscape' } };
+            const opt = { 
+                margin: 10, 
+                filename: `Relatorio_${turmaAtual}_${discAtual}.pdf`, 
+                html2canvas: { scale: 2 }, 
+                jsPDF: { orientation: 'landscape' }
+            };
+            
             html2pdf().set(opt).from(areaImpressao).save().then(() => {
                 titulo.style.display = 'none';
                 inputs.forEach(i => { i.style.border = ''; i.style.background = ''; });
@@ -455,12 +457,13 @@
                     let corStatus = mediaFinal >= 6.0 ? '#28a745' : '#dc3545';
                     let textoStatus = mediaFinal >= 6.0 ? (recupVal !== '-' ? 'Aprov. (Recup.)' : 'Aprovado') : 'Reprovado';
 
+                    // Linhas da tabela formatadas de forma mais compacta
                     linhasTabela += `<tr>
-                        <td style="padding: 12px; border: 1px solid #ddd; text-align: left; font-weight: bold;">${nomeDisc}</td>
-                        <td style="padding: 12px; border: 1px solid #ddd; font-size: 16px;">${mediaDisc.toFixed(1)}</td>
-                        <td style="padding: 12px; border: 1px solid #ddd; font-size: 16px;">${recupVal !== '-' ? parseFloat(recupVal).toFixed(1) : '-'}</td>
-                        <td style="padding: 12px; border: 1px solid #ddd; font-size: 18px; font-weight: bold; color: ${corStatus};">${mediaFinal.toFixed(1)}</td>
-                        <td style="padding: 12px; border: 1px solid #ddd; color: ${corStatus}; font-weight: bold;">${textoStatus}</td>
+                        <td style="padding: 6px; border: 1px solid #ddd; text-align: left; font-weight: bold;">${nomeDisc}</td>
+                        <td style="padding: 6px; border: 1px solid #ddd; font-size: 13px;">${mediaDisc.toFixed(1)}</td>
+                        <td style="padding: 6px; border: 1px solid #ddd; font-size: 13px;">${recupVal !== '-' ? parseFloat(recupVal).toFixed(1) : '-'}</td>
+                        <td style="padding: 6px; border: 1px solid #ddd; font-size: 14px; font-weight: bold; color: ${corStatus};">${mediaFinal.toFixed(1)}</td>
+                        <td style="padding: 6px; border: 1px solid #ddd; color: ${corStatus}; font-weight: bold; font-size: 12px;">${textoStatus}</td>
                     </tr>`;
                     
                     somaTotalGeral += mediaFinal; 
@@ -472,38 +475,46 @@
             let mediaGlobal = (somaTotalGeral / contadorDisciplinas).toFixed(1);
             let corGlobal = mediaGlobal >= 6.0 ? '#0056b3' : '#dc3545';
 
-            const htmlBoletim = `<div style="padding: 40px; font-family: 'Segoe UI', Tahoma, sans-serif; max-width: 800px; margin: 0 auto; border: 2px solid #0056b3; border-radius: 8px;">
-                <div style="text-align: center; margin-bottom: 30px;">
-                    <h2 style="color: #0056b3; margin: 0; font-size: 26px;">Gestão Educacional</h2>
-                    <h3 style="color: #555; margin: 5px 0; font-size: 20px;">Boletim Escolar Unificado</h3>
+            // Todo o layout reduzido (paddings, margens e fontes) para caber em uma página
+            const htmlBoletim = `<div style="padding: 20px; font-family: 'Segoe UI', Tahoma, sans-serif; width: 100%; max-width: 750px; margin: 0 auto; border: 2px solid #0056b3; border-radius: 8px; box-sizing: border-box;">
+                <div style="text-align: center; margin-bottom: 15px;">
+                    <h2 style="color: #0056b3; margin: 0; font-size: 20px;">Gestão Educacional</h2>
+                    <h3 style="color: #555; margin: 5px 0; font-size: 15px;">Boletim Escolar Unificado</h3>
                 </div>
-                <hr style="border-top: 1px solid #ccc; margin-bottom: 20px;">
+                <hr style="border-top: 1px solid #ccc; margin-bottom: 15px;">
                 
-                <div style="font-size: 18px; line-height: 1.6; margin-bottom: 30px; background: #f8f9fa; padding: 15px; border-radius: 6px;">
-                    <p style="margin: 5px 0;"><strong>Estudante:</strong> ${aluno}</p>
-                    <p style="margin: 5px 0;"><strong>Turma:</strong> ${turmaAtual}</p>
+                <div style="font-size: 14px; line-height: 1.4; margin-bottom: 15px; background: #f8f9fa; padding: 10px; border-radius: 6px;">
+                    <p style="margin: 3px 0;"><strong>Estudante:</strong> ${aluno}</p>
+                    <p style="margin: 3px 0;"><strong>Turma:</strong> ${turmaAtual}</p>
                 </div>
 
-                <table style="width: 100%; border-collapse: collapse; text-align: center; margin-bottom: 30px;">
+                <table style="width: 100%; border-collapse: collapse; text-align: center; margin-bottom: 15px; font-size: 12px;">
                     <thead>
                         <tr style="background: #eef5ff; color: #0056b3;">
-                            <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">Componente Curricular</th>
-                            <th style="padding: 12px; border: 1px solid #ddd;">Média Formativa</th>
-                            <th style="padding: 12px; border: 1px solid #ddd;">Recuperação</th>
-                            <th style="padding: 12px; border: 1px solid #ddd;">Média Final</th>
-                            <th style="padding: 12px; border: 1px solid #ddd;">Situação</th>
+                            <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Componente Curricular</th>
+                            <th style="padding: 8px; border: 1px solid #ddd;">Média Formativa</th>
+                            <th style="padding: 8px; border: 1px solid #ddd;">Recuperação</th>
+                            <th style="padding: 8px; border: 1px solid #ddd;">Média Final</th>
+                            <th style="padding: 8px; border: 1px solid #ddd;">Situação</th>
                         </tr>
                     </thead>
                     <tbody>${linhasTabela}</tbody>
                 </table>
 
-                <div style="background-color: #eef5ff; padding: 20px; text-align: center; border-radius: 8px; border: 1px solid #cce0ff;">
-                    <h4 style="margin-top: 0; color: #333; font-size: 16px;">Média Global do Período</h4>
-                    <div style="font-size: 36px; font-weight: bold; color: ${corGlobal};">${mediaGlobal}</div>
+                <div style="background-color: #eef5ff; padding: 15px; text-align: center; border-radius: 8px; border: 1px solid #cce0ff;">
+                    <h4 style="margin-top: 0; margin-bottom: 5px; color: #333; font-size: 14px;">Média Global do Período</h4>
+                    <div style="font-size: 28px; font-weight: bold; color: ${corGlobal};">${mediaGlobal}</div>
                 </div>
             </div>`;
 
-            html2pdf().set({ margin: 15, filename: `Boletim_Unificado_${aluno}.pdf`, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } }).from(htmlBoletim).save();
+            const opt = { 
+                margin: 10, 
+                filename: `Boletim_Unificado_${aluno}.pdf`, 
+                html2canvas: { scale: 2 }, 
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(htmlBoletim).save();
         }
     </script>
 </body>
